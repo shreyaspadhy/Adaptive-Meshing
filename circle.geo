@@ -1,0 +1,13 @@
+cl__1 = 1;
+Point(1) = {0, 0, 0, 1};
+Point(2) = {0, 12.5, 0, 1};
+Point(3) = {0, -12.5, 0, 1};
+Point(4) = {12.5, 0, 0, 1};
+Point(5) = {-12.5, 0, 0, 1};
+Circle(1) = {2, 1, 5};
+Circle(2) = {5, 1, 3};
+Circle(3) = {3, 1, 4};
+Circle(4) = {4, 1, 2};
+Line Loop(6) = {4, 1, 2, 3};
+Plane Surface(6) = {6};
+Characteristic Length {1, 2, 5, 3, 4} = 0.4;
