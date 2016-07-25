@@ -146,8 +146,8 @@ for ad = 1:4
           %h2 = toastMesh('adaptive.msh','gmsh');
     % %     h2.Display;
     %% Refine using Meshing Strategies (i), (ii), (iii)
-        %[h2, mua] = refine_mesh_2015(vert,idx,re, mua0, mua);
-    [h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors,qq);
+        [h2, mua] = refine_mesh_2015(vert,idx,re, mua0, mua);
+    %[h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors,qq);
     
     
     %% Populate new mesh properties
