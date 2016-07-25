@@ -12,15 +12,15 @@ for i = 1:ne
     for j = 1:length(neighbors(i,:))
         if(neighbors(i,j) ~= 0)
             
-            vertices = intersect(idx(i,:,qq), idx(neighbors(i,j),:,qq));
+            vertices = intersect(idx(i,:), idx(neighbors(i,j),:));
             
             vert_mid = (vert(vertices(1),:) + vert(vertices(2),:))./2;
             
             temp_el = hMesh.Element(i).ShapeDer(vert_mid', 'global');
             temp_nbr = hMesh.Element(neighbors(i,j)).ShapeDer(vert_mid', 'global');
             
-            grad_mid_el = [phi(idx(i,1,qq)), phi(idx(i,2,qq)), phi(idx(i,3,qq))]*temp_el';
-            grad_mid_nbr = [phi(idx(neighbors(i,j),1,qq)), phi(idx(neighbors(i,j),2,qq)), phi(idx(neighbors(i,j),3,qq))]*temp_nbr';
+            grad_mid_el = [phi(idx(i,1),qq), phi(idx(i,2),qq), phi(idx(i,3),qq)]*temp_el';
+            grad_mid_nbr = [phi(idx(neighbors(i,j),1),qq), phi(idx(neighbors(i,j),2),qq), phi(idx(neighbors(i,j),3),qq)]*temp_nbr';
             
             jump = abs(norm(kap0(i).*grad_mid_el - kap0(neighbors(i,j)).*grad_mid_nbr));
             
@@ -39,7 +39,7 @@ for i = 1:ne
     coord = (hMesh.Element(i).Data());
     coords(i,:) = mean(coord);
     temp = hMesh.Element(i).ShapeDer(coords(i,:)', 'global');
-    grad_el(i,:) = [phi(idx(i,1,qq)), phi(idx(i,2,qq)), phi(idx(i,3,qq))]*temp';
+    grad_el(i,:) = [phi(idx(i,1),qq), phi(idx(i,2),qq), phi(idx(i,3),qq)]*temp';
 end
 % 
 grad_el = grad_el./3;
@@ -67,14 +67,14 @@ rhs = zeros(ne,1);
 
 for i = 1:ne
     temp3 = hMesh.Element(i).ShapeFun(coords(i,:)', 'global');
-    rhs(i) = ([Q(idx(i,1,qq)), Q(idx(i,2,qq)), Q(idx(i,3,qq))]*temp3);
+    rhs(i) = ([Q(idx(i,1),qq), Q(idx(i,2),qq), Q(idx(i,3),qq)]*temp3);
 end
 
 second_term = zeros(ne, 1);
 
 for i = 1:ne
     temp2 = hMesh.Element(i).ShapeFun(coords(i,:)', 'global');
-    second_term(i) = mua0(i).*([phi(idx(i,1,qq)), phi(idx(i,2,qq)), phi(idx(i,3,qq))]*temp2);
+    second_term(i) = mua0(i).*([phi(idx(i,1),qq), phi(idx(i,2),qq), phi(idx(i,3),qq)]*temp2);
 end
 
 res1 = abs(-div + second_term - rhs);

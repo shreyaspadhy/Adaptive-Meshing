@@ -1,8 +1,9 @@
 % Adaptive Meshing with local residue calculation
+function adapt_local_residue
 
 meshpath = '/home/spadhy/Desktop/toastpp/test/2D/meshes/';
 %meshpath = 'C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\';
-qmname = 'circle25_1x1.qm';
+qmname = 'circle25_32x32.qm';
 
 %% Read Mesh and Parameters on element basis
 
@@ -32,8 +33,8 @@ mus_node = basis.Map('B->M',bmus);
 
 hMesh.ReadQM([meshpath qmname]);
 [vert,idx] = hMesh.Data();
-figure(1); clf;
-hMesh.Display();
+% figure(1); clf;
+% hMesh.Display();
 % Mesh has been made and properties populated
 
 ref = ones(ne,1)*refind;
@@ -54,22 +55,38 @@ end
 %mua0 = ones(ne,1)*mua_bkg;
 %mus0 = ones(ne,1)*mus_bkg;
 figure(10);
-subplot(2,1,1); hMesh.Display(mua0);
-subplot(2,1,2); hMesh.Display(mus0);
+subplot(2,1,1); hMesh.Display(mua0); title('\mu_a on coarse mesh');
+subplot(2,1,2); hMesh.Display(mus0); title('\mu_s on coarse mesh');
 
 kap0 = 1./(3.*(mua0+mus0));
 
 %% Sources
-Q = hMesh.Qvec ( 'Neumann', 'Gaussian', 2);
-nQ = size(Q,2);
+% Q = hMesh.Qvec ( 'Neumann', 'Gaussian', 2);
+%nQ = size(Q,2);
+% mvec = hMesh.Mvec('Gaussian',2,refind);
+
+rad = 25; % mesh radius [mm]
+nopt = 10;
+for i=1:nopt
+  phiq = (i-1)/nopt*2*pi;
+  qpos(i,:) = rad*[cos(phiq), sin(phiq)];
+  phim = (i-0.5)/nopt*2*pi;
+  mpos(i,:) = rad*[cos(phim), sin(phim)];
+end
+hMesh.SetQM(qpos,mpos);
+Q = real(hMesh.Qvec('Neumann','Gaussian',2));
+mvec = real(hMesh.Mvec('Gaussian',2,refind));
+nQ = nopt;
 
 %% Solve
 smat = dotSysmat(hMesh, mua0, mus0, ones(ne,1),0, 'EL');
 phi = smat \Q;
 
+res_source = zeros(ne,nQ);
 %% Loop over number of refinements
-for ad = 1:4
+for ad = 1:2
     %% Residue Related Variables
+    
     res = zeros(ne,1);
     grad = zeros(ne,2);
     grad_el = zeros(ne,2);
@@ -84,19 +101,20 @@ for ad = 1:4
         
         neighbors = hMesh.ElementNeighbours();
         %% Compute local residue estimate
-        [res] = calc_residue_jump(hMesh, phi, idx, kap0, neighbors, mua0, ne, qq, Q, vert);
-        
+        [res_source(:,qq)] = calc_residue_jump(hMesh, phi, idx, kap0, neighbors, mua0, ne, qq, Q, vert);
+        res = res_source(:,qq);
         minr = min(res);
         subplot(2,2,3); hMesh.Display(full(res));title('Error Estimate');
         subplot(2,2,4); hMesh.Display(log(abs(res)+abs(1.01*minr)));title('Error Estimate on log scale');
         pause(0.5);
     end
     
+    res = sum(res_source,2);
     %% Find elements that need refinement
     dns = log(res);
     dns = (dns-min(dns))/(max(dns)-min(dns))*1.8+0.2;
     
-    %Choose the top 10% of residues to refine
+    %Choose the top 20% of residues to refine
     res_sort = zeros(ne,2);
     for i = 1:ne
         res_sort(i,1) = res(i);
@@ -105,7 +123,7 @@ for ad = 1:4
     
     res_sort2 = sortrows(res_sort,1);
     small = 0;
-    num = round(ne/10);
+    num = 2*round(ne/10);
     
     re = zeros(num,1);
     for p = 1:1:num
@@ -129,8 +147,8 @@ for ad = 1:4
     
     figure(22);
     minr_nh = min(res_nh);
-    subplot(2,1,1); hMesh.Display(log(abs(res_nh)+abs(1.01*minr_nh)));
-    subplot(2,1,2); hMesh.Display(res_nh);
+    subplot(2,1,2); hMesh.Display(log(abs(res_nh)+abs(1.01*minr_nh))); title('Log of residue at each element center');
+    subplot(2,1,1); hMesh.Display(res_nh); title('Residue at each element center');
     
     %mua = zeros(ne,1);
     
@@ -147,8 +165,8 @@ for ad = 1:4
           %h2 = toastMesh('adaptive.msh','gmsh');
     % %     h2.Display;
     %% Refine using Meshing Strategies (i), (ii), (iii)
-        [h2, mua] = refine_mesh_2015(vert,idx,re, mua0, mua);
-    %[h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors,qq);
+        %[h2, mua] = refine_mesh_2015(vert,idx,re, mua0, mua);
+    [h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors,qq);
     
     
     %% Populate new mesh properties
@@ -158,11 +176,17 @@ for ad = 1:4
     
     h2.ReadQM([meshpath qmname]); % not great programming. Should not need to read twice...
     
-    Q2 = h2.Qvec ('Neumann', 'Gaussian', 2);
+    %     Q2 = h2.Qvec ('Neumann', 'Gaussian', 2);
+    %     mvec2 = h2.Mvec('Gaussian',2, refind);
+    
+  
+    h2.SetQM(qpos,mpos);
+    Q2 = real(h2.Qvec('Neumann','Gaussian',2));
+    mvec2 = real(h2.Mvec('Gaussian',2,refind));
     
     [vert2, idx2] = h2.Data();
     figure(14);clf;
-    h2.Display();
+    h2.Display(); title('Refined mesh');
     
     sizes = h2.ElementSize();
     
@@ -181,8 +205,8 @@ for ad = 1:4
         %y_coord = mean(coord(:,2));
         coords2(i,:) = mean(coord);
         temp2 = h2.Element(i).ShapeFun(coords2(i,:)', 'global');
-        mua(i) = ([mua_node2(idx2(i,1,qq)), mua_node2(idx2(i,2,qq)), mua_node2(idx2(i,3,qq))]*temp2);
-        mus(i) = ([mus_node2(idx2(i,1,qq)), mus_node2(idx2(i,2,qq)), mus_node2(idx2(i,3,qq))]*temp2);
+        mua(i) = ([mua_node2(idx2(i,1)), mua_node2(idx2(i,2)), mua_node2(idx2(i,3))]*temp2);
+        mus(i) = ([mus_node2(idx2(i,1)), mus_node2(idx2(i,2)), mus_node2(idx2(i,3))]*temp2);
     end
     %mua = basis2.Map('B->M', bmua);
     %mua = mua_bkg*ones(ne2,1);
@@ -197,7 +221,7 @@ for ad = 1:4
     smat2 = dotSysmat(h2,mua,mus,ones(ne2,1),0, 'EL');
     
     phi2 = smat2 \Q2;
-    
+    data_model = log(mvec2'*phi2); %This is the actual data generated by forward solver on refined mesh
     for qq = 1:4:nQ
         figure(5);clf;
         subplot(2,2,1); h2.Display(full(phi2(:,qq)));title('Field');
@@ -222,7 +246,7 @@ for ad = 1:4
         subplot(2,2,4); h2.Display(log(abs(res2)+abs(1.01*minr2)));title('Residual on log scale');
         %subplot(2,3,6); h2.Display(mus);title('\mu_s Original');
         
-        figure(15);
+        figure(15); title('Comparing rediues between coarse and fine mesh');
         subplot(2,1,1); hMesh.Display(full(res), 'range', [0, max(res)]);
         subplot(2,1,2); h2.Display(full(res2), 'range', [0, max(res)]);
         pause(0.5);
@@ -261,38 +285,97 @@ for ad = 1:4
     neighbors = neighbors2;
     coords = coords2;
     Q = Q2;
+    mvec = mvec2;
+    
+    %% Solve the Inverse Problem on refined mesh
+    mua_r = ones(nh,1)*mua_bkg;
+    %mus_r = ones(nh,1)*mus_bkg;
+    mus_r = mus_node2;
+    ref = ones(nh,1)*refind;
+    cm = 0.3/refind;
+    
+    smat = dotSysmat(hMesh, mua_r, mus_r, ref);
+    proj = reshape(log(mvec'*(smat\Q)), [], 1);
+    sd = ones(size(proj));
+    data_model = reshape(data_model, [], 1);
+    
+    grd_inv = [32, 32];
+    basis3 = toastBasis(hMesh, grd_inv);
+    
+    bmua_r = basis3.Map('M->B', mua_r);
+    bcmua = bmua_r*cm;
+    scmua = basis3.Map('B->S', bcmua);
+    x = scmua;
+    logx = log(x);
+    slen = length(x);
+    
+    regul = toastRegul('TV', basis3, logx, 1e-4, 'Beta', 0.01);
+    
+    err0 = toastObjective(proj, data_model, sd, regul, logx);
+    err = err0;
+    errp = inf;
+    itr = 1;
+    step = 0.1;
+    fprintf('Iteration %d, objective %f\n', 0, err);
+    
+    %% Inverse Solver Loop
+    
+    itrmax = 100; %CG iteration limit
+    tolCG = 1e-6;
+    
+    while (itr <= itrmax) && (err > tolCG*err0) && (errp-err > tolCG)
+        
+        errp = err;
+        
+        r = -toastGradient(hMesh, basis3, Q, mvec, mua_r, mus_r, ref, 0, ...
+            data_model, sd, 'method', 'cg', 'tolerance', 1e-12);
+        r = r(1:slen);
+        r = r.*x;
+        r = r - regul.Gradient(logx);
+        
+        %CG search direction update
+        if itr > 1
+            delta_old = delta_new;
+            delta_mid = r'*s;
+        end
+        s = r;
+        if itr == 1
+            d = s;
+            delta_new = r' * d;
+        else
+            delta_new = r' * s;
+            beta = (delta_new - delta_mid) / delta_old;
+            if mod(itr, 20) == 0 || beta <= 0
+                d = s;
+            else
+                d = s + d*beta;
+            end
+        end
+        
+        % Line search along update direction
+        step = toastLineSearch(logx, d, step, err, @objective);
+        logx = logx + d*step; %Update solution estimate
+        
+        mua_r = basis3.Map('S->M', exp(logx)/cm);
+        
+        proj = reshape(log(mvec'*(dotSysmat(hMesh, mua_r, mus_r, ref)\Q)), [], 1);
+        
+        err = toastObjective(proj, data_model, sd, regul, logx);
+        
+        fprintf('Iteration %d, objective %f\n', itr, err);
+        itr = itr+1;
+        
+        figure(50);
+    end
+             hMesh.Display(mua_r);
+   
 end
 
-% count = 0;
-% maxr = max(res2);
-%
-% for i = 1:length(res2)
-%     if (res2(i) > 0.03*1e-10)
-%         count = count+1;
-%     end
-% end
-%
-% j = 1;
-% re2 = zeros(count,1);
-% for i = 1:length(res2)
-%     if(res2(i) > 0.03*1e-10)
-%         re2(j) = i;
-%         j = j + 1;
-%     end
-% end
-% mua3 = zeros(ne2,1);
-% [h3, mua3] = refine_mesh_2015(vert2,idx2,re2, mua, mua3);
-% nh3 = h3.NodeCount();%(log(abs(full(phi2(:,qq)))+abs(1.01*minp)))
-% ne3 = h3.ElementCount();
-%
-% h3.ReadQM([meshpath qmname]); % not great programming. Should not need to read twice...
-%
-% Q3 = h3.Qvec ('Neumann', 'Gaussian', 2);
-%
-% [vert3, idx3] = h3.Data();
-% figure(11);
-% h3.Display();
+function p = objective(logx)  
+mua_ = basis3.Map('S->M',(exp(logx)/cm));
+proj_ = reshape(log(mvec' * (dotSysmat(hMesh, mua_, mus_r, ref)\Q)), [], 1);
+p = toastObjective(proj_, data_model, sd, regul, logx);    
+end
 
-%%
-%toastDeleteBasis(hBasis);
-%toastDeleteMesh(hMesh);
+end
+ 
