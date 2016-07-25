@@ -1,6 +1,7 @@
 % Adaptive Meshing with local residue calculation
 
 meshpath = '/home/spadhy/Desktop/toastpp/test/2D/meshes/';
+%meshpath = 'C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\';
 qmname = 'circle25_1x1.qm';
 
 %% Read Mesh and Parameters on element basis
