@@ -5,8 +5,8 @@ jump_total = zeros(ne,1);
 phi = sum(phi, 2)./100;
 Q = sum(Q, 2)./100;
 
-figure(5); hMesh.Display(full(phi));
-figure(6); hMesh.Display(kap0);
+%figure(5); hMesh.Display(full(phi));
+%figure(6); hMesh.Display(kap0);
 
 grad_mua = zeros(ne,2);
 for i = 1:ne
@@ -36,8 +36,8 @@ for i = 1:ne
     end
     
 end
-abs_grad_mua = sqrt(grad_mua(:,1).*grad_mua(:,1) + grad_mua(:,2).*grad_mua(:,2))
-figure(7); hMesh.Display(abs_grad_mua);
+abs_grad_mua = sqrt(grad_mua(:,1).*grad_mua(:,1) + grad_mua(:,2).*grad_mua(:,2));
+%figure(7); hMesh.Display(abs_grad_mua);
 
 for i = 1:ne
     coord = (hMesh.Element(i).Data());

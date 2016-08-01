@@ -17,7 +17,7 @@ for i = 1:length(re)
         mid_vert_ind = zeros(3,1);
         
         elem = idx(re(i),:);
-        elem_ind = re(i)
+        elem_ind = re(i);
         
         %Add the three new vertices
         for j = 1:3
@@ -34,11 +34,9 @@ for i = 1:length(re)
             
             for k = 1:3
                 if(neighbors(elem_ind,k) ~= 0 && flag1 ~= 1)
-                    idx(neighbors(elem_ind,k),:)
-                    elem
-                    com_vert_temp = intersect(elem, idx(neighbors(elem_ind, k),:))
-                    
-                    idx(neighbors(elem_ind,k),:)
+                   
+                    com_vert_temp = intersect(elem, idx(neighbors(elem_ind, k),:));
+                   
                     I = find(idx(neighbors(elem_ind,k),:) == vert1);
                     J = find(idx(neighbors(elem_ind,k),:) == vert2);
                     flag1 = 0;
@@ -66,7 +64,7 @@ for i = 1:length(re)
             idx(ne+1,:) = [com_vert(2); mid_vert_ind(j); opp_vert];
             ne = ne+1;
             
-            remove_ind = find(re == neighbors(elem_ind,index))
+            remove_ind = find(re == neighbors(elem_ind,index));
             if(remove_ind ~= 0)
                 flag(remove_ind,2) = 1;
             end

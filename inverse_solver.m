@@ -91,7 +91,7 @@ y0_homog = reshape(log(mvec_dat'*(phi2)), [], 1);
 
 %% Refinement Loop
 mua_r = ones(nh,1)*mua_bkg;
-for num_ref = 1:2
+for num_ref = 1:4
     %% Initialize guess on inverse mesh
     
     mua_r_homog = ones(nh,1)*mua_bkg;
@@ -100,11 +100,14 @@ for num_ref = 1:2
     mus_r = ones(nh,1)*mus_bkg;
     ref = ones(nh,1)*refind;
     
-    % Generate initial guess 'y1'
+    %mua_r = mua_r_homog;
+    
+    % Generate homogenous on coarse mesh
     smat = dotSysmat(h0, mua_r_homog, mus_r, ref);
     y1_homog = reshape(log(mvec'*(smat\Q)), [], 1);
     data_model = y0_inhomog - y0_homog+y1_homog;
     
+    % Generate improved guess on coarse mesh
     smat = dotSysmat(h0, mua_r, mus_r, ref);
     y1_inhomog = reshape(log(mvec'*(smat\Q)), [], 1);
     proj = y1_inhomog;
@@ -201,6 +204,8 @@ for num_ref = 1:2
     phi_res = smat3\Q;
     
     figure(3); h0.Display(mua0);
+    basis4 = toastBasis(h0, grd_img);
+    bmua_rec = basis4.Map('M->B',mua_r);
     
     res_inv = calc_residue_bangti(h0, phi_res, idx, kap0, neighbors, mua0, mua_r, ne, Q, vert);
     
@@ -221,13 +226,13 @@ for num_ref = 1:2
     re = zeros(num,1);
     for p = 1:1:num
         re(p) = res_sort2(ne-p,2);
-        res_sort2(ne-p,2)
     end
     
     [h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors);
     
     figure(10); h2.Display();
     
+
     h0 = h2;
     ne = h0.ElementCount;
     nh = h0.NodeCount;
@@ -242,6 +247,7 @@ for num_ref = 1:2
     % Store parameters in nodal basis on h0
     basis_img = toastBasis(h0,grd_img);
     mua_node = basis_img.Map('B->M',bmua);
+    mua_r = mua_node;
     %mus_node = basis_img.Map('B->M',bmus);
     mus_node = mus_bkg*ones(nh,1);
     
