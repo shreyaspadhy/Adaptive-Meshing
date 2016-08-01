@@ -92,6 +92,7 @@ for ad = 1:2
     grad = zeros(ne,2);
     grad_el = zeros(ne,2);
     coords = zeros(ne,2);
+    res_source = zeros(ne,nQ);
     
     %% Loop over sources
     for qq = 1:1:nQ
@@ -190,6 +191,8 @@ for ad = 1:2
     figure(14);clf;
     h2.Display(); title('Refined mesh');
     
+    h2.Write('adaptive.msh', 'gmsh');
+    
     sizes = h2.ElementSize();
     
     %% Work on refined mesh
@@ -252,7 +255,7 @@ for ad = 1:2
         %subplot(2,3,6); h2.Display(mus);title('\mu_s Original');
     end
     res2d = sum(res2_source,2);
-        figure(15); title('Comparing rediues between coarse and fine mesh');
+        figure(15); title('Comparing residues between coarse and fine mesh');
         subplot(2,1,1); hMesh.Display(full(res), 'range', [0, max(res)]);
         subplot(2,1,2); h2.Display(full(res2d), 'range', [0, max(res)]);
         pause(0.5);
@@ -293,6 +296,7 @@ for ad = 1:2
     Q = Q2;
     mvec = mvec2;
     
+    
     %% Solve the Inverse Problem on refined mesh
     
 %     mesh_f = toastMesh('adaptive.msh','gmsh');
@@ -306,8 +310,8 @@ for ad = 1:2
 %     mvecf = real(mesh_f.Mvec('Gaussian',2,refind));    
 %     sysMatf = dotSysmat(mesh_f, mua_node_f, mus_node_f, ref_f);
 %     data_model_f = reshape(log(mvecf'*(sysMatf\Qf)), [], 1);
-    
-    
+   
+
     mua_r = ones(nh,1)*mua_bkg;
     %mus_r = ones(nh,1)*mus_bkg;
     mus_r = mus_node2;
@@ -360,7 +364,7 @@ for ad = 1:2
         end
         s = r;
         if itr == 1
-            d = s;
+            d = s;l
             delta_new = r' * d;
         else
             delta_new = r' * s;
@@ -388,8 +392,19 @@ for ad = 1:2
         
         figure(50);
     end
-             hMesh.Display(mua_r);
-   
+    hMesh.Display(mua_r);
+    
+    for i = 1:ne
+        coord = (hMesh.Element(i).Data());
+        %x_coord = mean(coord(:,1));
+        %y_coord = mean(coord(:,2));
+        coords(i,:) = mean(coord);
+        temp = hMesh.Element(i).ShapeFun(coords(i,:)', 'global');
+        mua0(i) = ([mua_r(idx(i,1)), mua_r(idx(i,2)), mua_r(idx(i,3))]*temp);
+        mus0(i) = ([mus_r(idx(i,1)), mus_r(idx(i,2)), mus_r(idx(i,3))]*temp);
+    end
+    kap0 = 1./(3.*(mua0+mus0));
+     
 end
 
 function p = objective(logx)  

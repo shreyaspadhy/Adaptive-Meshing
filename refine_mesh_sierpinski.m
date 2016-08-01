@@ -1,4 +1,4 @@
-function [h] = refine_mesh_sierpinski(vert,idx,re, mua0, neighbors,qq)
+function [h] = refine_mesh_sierpinski(vert,idx,re, mua0, neighbors)
 % refine the set 're' in list 'el'
 % linear triangles only, so far
 
