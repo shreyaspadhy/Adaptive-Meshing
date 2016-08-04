@@ -1,6 +1,7 @@
 function inverse_solver
 
 %% Load Mesh Data
+close all;
 refind = 1.4; % refractive index
 c0 = 0.3; % speed of light in vacuum [mm/ps]
 cm = c0/refind; % speed of light in the medium [mm/ps]
@@ -20,6 +21,7 @@ ne = h0.ElementCount;
 nh = h0.NodeCount;
 [vert,idx] = h0.Data();
 ref = ones(ne,1)*refind;
+
 rad = 25; % mesh radius [mm]
 nopt = 10;
 for i=1:nopt
@@ -51,7 +53,7 @@ for i = 1:ne
     coords(i,:) = mean(coord);
     temp = h0.Element(i).ShapeFun(coords(i,:)', 'global');
     mua0(i) = ([mua_node(idx(i,1)), mua_node(idx(i,2)), mua_node(idx(i,3))]*temp);
-    mus0(i) = ([mus_node(idx(i,1)), mus_node(idx(i,2)), mus_node(idx(i,3))]*temp);
+    %mus0(i) = ([mus_node(idx(i,1)), mus_node(idx(i,2)), mus_node(idx(i,3))]*temp);
 end
 
 %mua0 = ones(ne,1)*mua_bkg;
@@ -83,15 +85,19 @@ mvec_dat = real(dataMesh.Mvec('Gaussian',2,refind));
 smat = dotSysmat(dataMesh, mua_dat, mus_dat, ref_dat);
 phi = smat \Q_dat;
 y0_inhomog = reshape(log(mvec_dat'*(phi)), [], 1);
+y0_inhomog  = y0_inhomog + 0.025.*randn(size(y0_inhomog));
 
-% Generate homogenous discretized error
+
+% Generate homogenous data
 smat2 = dotSysmat(dataMesh, mua_homog, mus_dat, ref_dat);
 phi2 = smat2 \Q_dat;
 y0_homog = reshape(log(mvec_dat'*(phi2)), [], 1);
 
 %% Refinement Loop
 mua_r = ones(nh,1)*mua_bkg;
-for num_ref = 1:4
+num_ref = 3;
+
+for num_iter = 1:num_ref   %Number of refinements
     %% Initialize guess on inverse mesh
     
     mua_r_homog = ones(nh,1)*mua_bkg;
@@ -99,20 +105,32 @@ for num_ref = 1:4
     %mus_r = mus_node;
     mus_r = ones(nh,1)*mus_bkg;
     ref = ones(nh,1)*refind;
-    
+   
     %mua_r = mua_r_homog;
     
-    % Generate homogenous on coarse mesh
+    % Generate homogenous data on coarse mesh
     smat = dotSysmat(h0, mua_r_homog, mus_r, ref);
     y1_homog = reshape(log(mvec'*(smat\Q)), [], 1);
     data_model = y0_inhomog - y0_homog+y1_homog;
+    %data_model = data_model + 0.1.*randn(size(data_model));
     
     % Generate improved guess on coarse mesh
     smat = dotSysmat(h0, mua_r, mus_r, ref);
     y1_inhomog = reshape(log(mvec'*(smat\Q)), [], 1);
     proj = y1_inhomog;
     sd = ones(size(proj));
-    grd_inv = [256, 256];
+    
+    %Changing the inverse basis discretization
+    if(num_iter == 1)
+        grd_inv = [256, 256];
+    elseif(num_iter == 2)
+        grd_inv = [512, 512];
+    elseif(num_iter == 3)
+        grd_inv = [1024, 1024];
+    end
+    
+    %grd_inv = [256, 256];
+    
     basis3 = toastBasis(h0, grd_inv);
     
     % Create solution vector
@@ -136,7 +154,7 @@ for num_ref = 1:4
     
     %% Inverse Solver Loop
     
-    itrmax = 10; %CG iteration limit
+    itrmax = 100; %CG iteration limit
     tolCG = 1e-6;
     
     while (itr <= itrmax) && (err > tolCG*err0) && (errp-err > tolCG)
@@ -167,7 +185,6 @@ for num_ref = 1:4
                 d = s + d*beta;
             end
         end
-        %d = r;
         
         % Line search along update direction
         step = toastLineSearch(logx, d, step, err, @objective);
@@ -185,7 +202,7 @@ for num_ref = 1:4
         figure(50);
     end
     h0.Display(mua_r);
-   
+    
     %% Refine h0 depending on the recovered mua_r
     
     for i = 1:ne
@@ -212,48 +229,50 @@ for num_ref = 1:4
     figure(2); h0.Display(res_inv); title('Inverse Residue');
     %% Set h0 as the refined mesh
     
-    %Choose the top 20% of residues to refine
-    res_sort = zeros(ne,2);
-    for i = 1:ne
-        res_sort(i,1) = res_inv(i);
-        res_sort(i,2) = i;
+    if(num_iter ~= num_ref)
+        %Choose the top percent_residue of residues to refine
+        res_sort = zeros(ne,2);
+        for i = 1:ne
+            res_sort(i,1) = res_inv(i);
+            res_sort(i,2) = i;
+        end
+        
+        res_sort2 = sortrows(res_sort,1);
+        small = 0;
+        percent_residue = 40;
+        num = (percent_residue/10)*round(ne/10);
+        
+        re = zeros(num,1);
+        for p = 1:1:num
+            re(p) = res_sort2(ne-p,2);
+        end
+        
+        [h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors);
+        
+        figure(10); h2.Display();
+        
+        
+        h0 = h2;
+        ne = h0.ElementCount;
+        nh = h0.NodeCount;
+        [vert,idx] = h0.Data();
+        ref = ones(ne,1)*refind;
+        
+        h0.SetQM(qpos,mpos);
+        Q = real(h0.Qvec('Neumann','Gaussian',2));
+        mvec = real(h0.Mvec('Gaussian',2,refind));
+        nQ = nopt;
+        
+        % Store parameters in nodal basis on h0
+        basis_img = toastBasis(h0,grd_img);
+        mua_node = basis_img.Map('B->M',bmua_rec);
+        mua_r = mua_node;
+        %mus_node = basis_img.Map('B->M',bmus);
+        mus_node = mus_bkg*ones(nh,1);
     end
-    
-    res_sort2 = sortrows(res_sort,1);
-    small = 0;
-    num = 4*round(ne/10);
-    
-    re = zeros(num,1);
-    for p = 1:1:num
-        re(p) = res_sort2(ne-p,2);
-    end
-    
-    [h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors);
-    
-    figure(10); h2.Display();
-    
-
-    h0 = h2;
-    ne = h0.ElementCount;
-    nh = h0.NodeCount;
-    [vert,idx] = h0.Data();
-    ref = ones(ne,1)*refind;
-    
-    h0.SetQM(qpos,mpos);
-    Q = real(h0.Qvec('Neumann','Gaussian',2));
-    mvec = real(h0.Mvec('Gaussian',2,refind));
-    nQ = nopt;
-    
-    % Store parameters in nodal basis on h0
-    basis_img = toastBasis(h0,grd_img);
-    mua_node = basis_img.Map('B->M',bmua);
-    mua_r = mua_node;
-    %mus_node = basis_img.Map('B->M',bmus);
-    mus_node = mus_bkg*ones(nh,1);
-    
     % Mesh has been made and properties populated
     
-    end
+end
 
     function p = objective(logx)
         mua_ = basis3.Map('S->M',(exp(logx)/cm));
