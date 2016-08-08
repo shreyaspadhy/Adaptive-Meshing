@@ -85,7 +85,7 @@ mvec_dat = real(dataMesh.Mvec('Gaussian',2,refind));
 smat = dotSysmat(dataMesh, mua_dat, mus_dat, ref_dat);
 phi = smat \Q_dat;
 y0_inhomog = reshape(log(mvec_dat'*(phi)), [], 1);
-y0_inhomog  = y0_inhomog + 0.025.*randn(size(y0_inhomog));
+y0_inhomog  = y0_inhomog + 0.01.*randn(size(y0_inhomog));
 
 
 % Generate homogenous data

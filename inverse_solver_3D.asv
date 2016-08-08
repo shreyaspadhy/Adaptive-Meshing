@@ -9,9 +9,9 @@ mua_bkg = 0.01; % background absorption [1/mm]
 mus_bkg = 1; % background scattering [1/mm];
 
 % Load parameters
-
+hmua = toastMesh('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\cyl4_blobs.msh');
 %Load initial inverse mesh
-h0 = toastMesh('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\cyl2.msh');
+h0 = toastMesh('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\cyl_coarse2.msh', 'gmsh');
 ne = h0.ElementCount;
 nh = h0.NodeCount;
 [vert,idx] = h0.Data();
@@ -30,8 +30,9 @@ mua0 = nim.Values;
 nim = toastNim('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\mus_tgt_cyl4.nim');
 mus0 = nim.Values;
 
-basis_inv = toastBasis(h0, grd_img);
-%bmua = basis_inv.Map('M->B'
+basis_inv = toastBasis(hmua, grd_img);
+bmua = basis_inv.Map('M->B', mua0);
+bmus = basis_inv.Map('M->B', mus0);
 
 kap0 = 1./(3./(mua0+mus0));
 % Mesh has been made and properties populated
@@ -59,7 +60,7 @@ kap0 = 1./(3./(mua0+mus0));
 % 
 % fprintf('Inverse mesh populated and parameters stored');
 %% Generate exact data from fine mesh
-dataMesh = toastMesh('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\cyl4_blobs.msh');
+dataMesh = toastMesh('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\cyl2.msh');
 dataMesh.ReadQM('cyl_5ring.qm');
 Q_dat = real(h0.Qvec('Neumann','Gaussian',2));
 mvec_dat = real(h0.Mvec('Gaussian',2,refind));
@@ -79,7 +80,7 @@ mvec_dat = real(dataMesh.Mvec('Gaussian',2,refind));
 smat = dotSysmat(dataMesh, mua_dat, mus_dat, ref_dat);
 phi = smat \Q_dat;
 y0_inhomog = reshape(log(mvec_dat'*(phi)), [], 1);
-y0_inhomog  = y0_inhomog + 0.025.*randn(size(y0_inhomog));
+%y0_inhomog  = y0_inhomog + 0.025.*randn(size(y0_inhomog));
 
 
 % Generate homogenous data
@@ -115,15 +116,15 @@ for num_iter = 1:num_ref   %Number of refinements
     sd = ones(size(proj));
     
     %Changing the inverse basis discretization
-    if(num_iter == 1)
-        grd_inv = [256, 256];
-    elseif(num_iter == 2)
-        grd_inv = [512, 512];
-    elseif(num_iter == 3)
-        grd_inv = [1024, 1024];
-    end
+%     if(num_iter == 1)
+%         grd_inv = [256, 256];
+%     elseif(num_iter == 2)
+%         grd_inv = [512, 512];
+%     elseif(num_iter == 3)
+%         grd_inv = [1024, 1024];
+%     end
     
-    %grd_inv = [256, 256];
+    grd_inv = [32, 32, 32];
     
     basis3 = toastBasis(h0, grd_inv);
     
@@ -148,7 +149,7 @@ for num_iter = 1:num_ref   %Number of refinements
     
     %% Inverse Solver Loop
     
-    itrmax = 100; %CG iteration limit
+    itrmax = 15; %CG iteration limit
     tolCG = 1e-6;
     
     while (itr <= itrmax) && (err > tolCG*err0) && (errp-err > tolCG)
@@ -199,16 +200,20 @@ for num_iter = 1:num_ref   %Number of refinements
     
     %% Refine h0 depending on the recovered mua_r
     
-    for i = 1:ne
-        coord = (h0.Element(i).Data());
-        %x_coord = mean(coord(:,1));
-        %y_coord = mean(coord(:,2));
-        coords(i,:) = mean(coord);
-        temp = h0.Element(i).ShapeFun(coords(i,:)', 'global');
-        mua0(i) = ([mua_r(idx(i,1)), mua_r(idx(i,2)), mua_r(idx(i,3))]*temp);
-        mus0(i) = ([mus_r(idx(i,1)), mus_r(idx(i,2)), mus_r(idx(i,3))]*temp);
-    end
-    kap0 = 1./(3.*(mua0+mus0));
+    
+%     
+%     
+%     
+%     for i = 1:ne
+%         coord = (h0.Element(i).Data());
+%         %x_coord = mean(coord(:,1));
+%         %y_coord = mean(coord(:,2));
+%         coords(i,:) = mean(coord);
+%         temp = h0.Element(i).ShapeFun(coords(i,:)', 'global');
+%         mua0(i) = ([mua_r(idx(i,1)), mua_r(idx(i,2)), mua_r(idx(i,3))]*temp);
+%         mus0(i) = ([mus_r(idx(i,1)), mus_r(idx(i,2)), mus_r(idx(i,3))]*temp);
+%     end
+%     kap0 = 1./(3.*(mua0+mus0));
     neighbors = h0.ElementNeighbours();
     
     smat3 = dotSysmat(h0, mua_r, mus_r, ref);
@@ -218,16 +223,21 @@ for num_iter = 1:num_ref   %Number of refinements
     basis4 = toastBasis(h0, grd_img);
     bmua_rec = basis4.Map('M->B',mua_r);
     
-    res_inv = calc_residue_bangti(h0, phi_res, idx, kap0, neighbors, mua0, mua_r, ne, Q, vert);
     
-    figure(2); h0.Display(res_inv); title('Inverse Residue');
+    [res, res_nh] = calc_vol_residue_3D(h0, phi_res, idx, mua_r, mus_r, Q);
+    
+    %figure(2); h0.Display(res);
+    
+    %res_inv = calc_residue_bangti(h0, phi_res, idx, kap0, neighbors, mua0, mua_r, ne, Q, vert);
+    
+    figure(2); h0.Display(res_nh); title('Inverse Residue');
     %% Set h0 as the refined mesh
     
     if(num_iter ~= num_ref)
         %Choose the top percent_residue of residues to refine
         res_sort = zeros(ne,2);
         for i = 1:ne
-            res_sort(i,1) = res_inv(i);
+            res_sort(i,1) = res(i);
             res_sort(i,2) = i;
         end
         
@@ -241,10 +251,11 @@ for num_iter = 1:num_ref   %Number of refinements
             re(p) = res_sort2(ne-p,2);
         end
         
-        [h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors);
-        
+        %[h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors);
+        [h2] = refine_mesh_3D(vert,  idx, re);
         figure(10); h2.Display();
         
+        toastMesh.Write(
         
         h0 = h2;
         ne = h0.ElementCount;
@@ -252,10 +263,10 @@ for num_iter = 1:num_ref   %Number of refinements
         [vert,idx] = h0.Data();
         ref = ones(ne,1)*refind;
         
-        h0.SetQM(qpos,mpos);
+        h0.ReadQM('cyl_5ring.qm');
         Q = real(h0.Qvec('Neumann','Gaussian',2));
         mvec = real(h0.Mvec('Gaussian',2,refind));
-        nQ = nopt;
+        
         
         % Store parameters in nodal basis on h0
         basis_img = toastBasis(h0,grd_img);

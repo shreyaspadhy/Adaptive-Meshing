@@ -11,7 +11,7 @@ mus_bkg = 1; % background scattering [1/mm];
 % Load parameters
 hmua = toastMesh('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\cyl4_blobs.msh');
 %Load initial inverse mesh
-h0 = toastMesh('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\cyl2.msh');
+h0 = toastMesh('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\cyl_coarse.msh', 'gmsh');
 ne = h0.ElementCount;
 nh = h0.NodeCount;
 [vert,idx] = h0.Data();
@@ -31,8 +31,11 @@ nim = toastNim('C:\Users\shrey\Desktop\TOAST\toast\toast\Adaptive-Meshing\mus_tg
 mus0 = nim.Values;
 
 basis_inv = toastBasis(hmua, grd_img);
+basis_trial = toastBasis(h0, grd_img);
 bmua = basis_inv.Map('M->B', mua0);
 bmus = basis_inv.Map('M->B', mus0);
+
+mua_coarse = basis_trial.Map('B->M', bmua);
 
 kap0 = 1./(3./(mua0+mus0));
 % Mesh has been made and properties populated
@@ -226,18 +229,18 @@ for num_iter = 1:num_ref   %Number of refinements
     
     [res, res_nh] = calc_vol_residue_3D(h0, phi_res, idx, mua_r, mus_r, Q);
     
-    figure(2); h0.Display(res);
+    %figure(2); h0.Display(res);
     
-    res_inv = calc_residue_bangti(h0, phi_res, idx, kap0, neighbors, mua0, mua_r, ne, Q, vert);
+    %res_inv = calc_residue_bangti(h0, phi_res, idx, kap0, neighbors, mua0, mua_r, ne, Q, vert);
     
-    figure(2); h0.Display(res_inv); title('Inverse Residue');
+    figure(2); h0.Display(res_nh); title('Inverse Residue');
     %% Set h0 as the refined mesh
     
     if(num_iter ~= num_ref)
         %Choose the top percent_residue of residues to refine
         res_sort = zeros(ne,2);
         for i = 1:ne
-            res_sort(i,1) = res_inv(i);
+            res_sort(i,1) = res(i);
             res_sort(i,2) = i;
         end
         
@@ -251,10 +254,12 @@ for num_iter = 1:num_ref   %Number of refinements
             re(p) = res_sort2(ne-p,2);
         end
         
-        [h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors);
-        
+        neighbors = h0.ElementNeighbours();
+        %[h2] = refine_mesh_sierpinski(vert, idx, re, mua0, neighbors);
+        [h2] = refine_mesh_sierpinski_3D(vert, idx, re, neighbors);
         figure(10); h2.Display();
         
+        h2.Write('3dadapt.msh', 'gmsh');
         
         h0 = h2;
         ne = h0.ElementCount;
@@ -262,10 +267,10 @@ for num_iter = 1:num_ref   %Number of refinements
         [vert,idx] = h0.Data();
         ref = ones(ne,1)*refind;
         
-        h0.SetQM(qpos,mpos);
+        h0.ReadQM('cyl_5ring.qm');
         Q = real(h0.Qvec('Neumann','Gaussian',2));
         mvec = real(h0.Mvec('Gaussian',2,refind));
-        nQ = nopt;
+        
         
         % Store parameters in nodal basis on h0
         basis_img = toastBasis(h0,grd_img);
